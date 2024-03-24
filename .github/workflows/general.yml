@@ -48,7 +48,7 @@ jobs:
               ${{ runner.os }}-cargo-bin-
 
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --locked || echo "cargo-llvm-cov already installed"
+        run: cargo +stable install cargo-llvm-cov --locked || echo "cargo-llvm-cov already installed"
 
       - name: Run cargo llvm-cov
         run: cargo llvm-cov
