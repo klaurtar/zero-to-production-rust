@@ -36,5 +36,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo +stable install cargo-llvm-cov --locked
-      - run: cargo llvm-cov
+
+      - name: Cache cargo binaries
+        uses: actions/cache@v3
+        with:
+            path: |
+              ~/.cargo/bin
+              target
+            key: ${{ runner.os }}-cargo-bin-${{ hashFiles('**/Cargo.lock') }}
+            restore-keys: |
+              ${{ runner.os }}-cargo-bin-
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked || echo "cargo-llvm-cov already installed"
+
+      - name: Run cargo llvm-cov
+        run: cargo llvm-cov
