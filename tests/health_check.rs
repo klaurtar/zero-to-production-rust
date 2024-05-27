@@ -10,6 +10,7 @@ use zero2prod::startup::run;
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
+    pub database: DatabaseSettings,
 }
 
 #[tokio::test]
@@ -29,6 +30,8 @@ async fn health_check_works() {
     // Assert
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
+
+    clean_up_database(app).await;
 }
 
 #[tokio::test]
@@ -58,6 +61,8 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     assert_eq!(saved.email, "example@gmail.com");
     assert_eq!(saved.name, "Ryan");
+
+    clean_up_database(app).await;
 }
 
 #[tokio::test]
@@ -88,6 +93,8 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
             error_message
         );
     }
+
+    clean_up_database(app).await;
 }
 
 async fn spawn_app() -> TestApp {
@@ -109,6 +116,7 @@ async fn spawn_app() -> TestApp {
     TestApp {
         address,
         db_pool: connection_pool,
+        database: configuration.database,
     }
 }
 
@@ -134,4 +142,40 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("Failed to migrate the database");
 
     connection_pool
+}
+
+async fn clean_up_database(config: TestApp) {
+    let mut connection = PgConnection::connect(&config.database.connection_string_without_db())
+        .await
+        .expect("Failed to connect to Postgres");
+
+    // Terminate all connections to the database
+    connection
+        .execute(
+            format!(
+                r#"
+                SELECT
+                    pg_terminate_backend(pg_stat_activity.pid)
+                FROM
+                    pg_stat_activity
+                WHERE
+                    pg_stat_activity.datname = '{}'
+                    AND pid <> pg_backend_pid();
+                "#,
+                &config.database.database_name
+            )
+                .as_str(),
+        )
+        .await
+        .expect("Failed to terminate connections");
+
+    connection
+        .execute(format!(r#"DROP DATABASE "{}";"#, &config.database.database_name).as_str())
+        .await
+        .expect("Failed to drop database");
+
+    println!(
+        "Database {} successfully dropped!",
+        &config.database.database_name
+    );
 }
